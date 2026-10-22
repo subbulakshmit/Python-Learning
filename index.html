@@ -14,19 +14,19 @@ pre,textarea{background:var(--code);color:var(--codefg);border-radius:6px;paddin
 </style></head><body>
 <div id="gate" style="position:fixed;inset:0;z-index:50;background:var(--bg);display:none;overflow:auto;padding:max(16px,env(safe-area-inset-top)) 16px 16px"><div class="card" style="max-width:420px;margin:4vh auto"><h2 style="margin-top:0">🐍 Python Lab</h2><div class="tabs" style="margin-bottom:8px"><button id="tbLogin" class="on">Login</button><button id="tbSign">Sign up</button></div>
 <div id="fLogin"><p class="mut">Log in with your username and password to continue your practice.</p>
-<label>User name</label><input id="lUser" autocomplete="username" style="width:100%;margin:4px 0 10px">
-<label>Password</label><input id="lPass" type="password" autocomplete="current-password" style="width:100%;margin:4px 0 10px">
+<label>User name</label><input id="lUser" autocomplete="off" style="width:100%;margin:4px 0 10px">
+<label>Password</label><input id="lPass" type="password" autocomplete="new-password" style="width:100%;margin:4px 0 10px">
 <div id="lErr" style="color:#dc2626;min-height:20px"></div><button class="run" id="lGo" style="width:100%;padding:10px">Login</button></div>
 <div id="fSign" style="display:none"><p class="mut">Create your account. Your progress is private to you.</p>
-<label>Full name</label><input id="sName" autocomplete="name" style="width:100%;margin:4px 0 10px">
-<label>Email ID</label><input id="sEmail" type="email" autocomplete="email" style="width:100%;margin:4px 0 10px">
-<label>Country</label><input id="sCountry" list="ctry" autocomplete="country-name" style="width:100%;margin:4px 0 10px"><datalist id="ctry"><option>India</option><option>United States</option><option>United Kingdom</option><option>Canada</option><option>Australia</option><option>Singapore</option><option>United Arab Emirates</option><option>Germany</option><option>France</option><option>Nepal</option><option>Sri Lanka</option><option>Bangladesh</option><option>Malaysia</option><option>Other</option></datalist>
-<label>College / University</label><input id="sCollege" autocomplete="organization" style="width:100%;margin:4px 0 10px">
-<label>User name (3–20 letters, digits, _ or .)</label><input id="sUser" autocomplete="username" style="width:100%;margin:4px 0 10px">
+<label>Full name</label><input id="sName" autocomplete="off" style="width:100%;margin:4px 0 10px">
+<label>Email ID</label><input id="sEmail" type="email" autocomplete="off" style="width:100%;margin:4px 0 10px">
+<label>Country</label><input id="sCountry" list="ctry" autocomplete="off" style="width:100%;margin:4px 0 10px"><datalist id="ctry"><option>India</option><option>United States</option><option>United Kingdom</option><option>Canada</option><option>Australia</option><option>Singapore</option><option>United Arab Emirates</option><option>Germany</option><option>France</option><option>Nepal</option><option>Sri Lanka</option><option>Bangladesh</option><option>Malaysia</option><option>Other</option></datalist>
+<label>College / University</label><input id="sCollege" autocomplete="off" style="width:100%;margin:4px 0 10px">
+<label>User name (3–20 letters, digits, _ or .)</label><input id="sUser" autocomplete="off" style="width:100%;margin:4px 0 10px">
 <label>Password (at least 6 characters)</label><input id="sPass" type="password" autocomplete="new-password" style="width:100%;margin:4px 0 10px">
 <label>Confirm password</label><input id="sPass2" type="password" autocomplete="new-password" style="width:100%;margin:4px 0 10px">
 <div id="sErr" style="color:#dc2626;min-height:20px"></div><button class="run" id="sGo" style="width:100%;padding:10px">Sign up</button></div>
-<p class="mut" style="font-size:12px;text-align:center;margin:14px 0 0">Functions: Suyash Srivastava · Programs &amp; Debugging: Dr. T. Subbulakshmi, VIT Chennai · Built with Claude</p></div></div>
+</div></div>
 <div id="fbm" style="position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:none;overflow:auto;padding:16px"><div class="card" style="max-width:440px;margin:6vh auto"><h2 style="margin-top:0">Before you go…</h2><p class="mut">How was your practice today? Your feedback helps us improve Python Lab.</p>
 <div id="fbStars" style="margin-bottom:8px"><button style="background:none;border:0;font-size:30px;cursor:pointer;color:var(--mut)">★</button><button style="background:none;border:0;font-size:30px;cursor:pointer;color:var(--mut)">★</button><button style="background:none;border:0;font-size:30px;cursor:pointer;color:var(--mut)">★</button><button style="background:none;border:0;font-size:30px;cursor:pointer;color:var(--mut)">★</button><button style="background:none;border:0;font-size:30px;cursor:pointer;color:var(--mut)">★</button></div>
 <label>What did you like, or what should we improve?</label><textarea id="fbText" maxlength="1000" placeholder="Type your comments here (optional)" style="min-height:90px;margin:4px 0 8px;background:var(--card);color:var(--fg);border:1px solid var(--bd)"></textarea>
@@ -760,12 +760,13 @@ async function sync(force){if(!prof||prof.admin||!db||!uid||(!dirty&&!force))ret
   await db.doc("data/users/"+uid+"/profile").set({name:prof.name,email:prof.email,username:prof.username,country:prof.country,college:prof.college,joined:prof.joined,last:new Date().toISOString()});
   dirty=false;syncErr=""}catch(e){syncErr=(e&&e.code)||"error"}}
 async function mergeDb(){if(!db||!uid)return;try{const s=await db.doc("board/"+uid).get();if(s.exists){const d=s.data();if(d&&d.total>total()){time.secs=d.secs||{};time.runs=Math.max(d.runs||0,time.runs||0);save();upd()}}}catch(e){}}
-async function initDb(){try{if(typeof claude==="undefined")return;const u=await claude.use("user");if(u)uid=await u.id();db=await claude.use("db");if(!db)uid=null;if(prof){await mergeDb();dirty=true;sync(true)}}catch(e){db=null;uid=null}}
-function showGate(){$("#gate").style.display="block"}
+async function initDb(){try{if(typeof claude==="undefined")return;const u=await claude.use("user");if(u)uid=await u.id();db=await claude.use("db");if(!db)uid=null;if(prof){await mergeDb();dirty=true;sync(true)}}catch(e){db=null;uid=null;dbErr=(e&&(e.code||e.message))||String(e)}}
+function clearGate(){["lUser","lPass","sName","sEmail","sCountry","sCollege","sUser","sPass","sPass2"].forEach(i=>{const e=document.getElementById(i);if(e)e.value=""});["lErr","sErr"].forEach(i=>{const e=document.getElementById(i);if(e)e.textContent=""})}
+function showGate(){clearGate();if(typeof gateTab==="function")gateTab("l");$("#gate").style.display="block";setTimeout(clearGate,300)}
 const q$=id=>document.getElementById(id);let aFails=0,aLock=0;
 const getAcct=u=>{try{return JSON.parse(localStorage.getItem("pylab_acct_"+u))}catch(e){return null}};
 function gateTab(w){q$("fLogin").style.display=w==="l"?"block":"none";q$("fSign").style.display=w==="s"?"block":"none";q$("tbLogin").classList.toggle("on",w==="l");q$("tbSign").classList.toggle("on",w==="s")}
-function enterApp(){q$("gate").style.display="none";upd();refreshAcl();if(!prof.admin)mergeDb().then(()=>{dirty=true;sync(true)})}
+function enterApp(){clearGate();q$("gate").style.display="none";upd();refreshAcl();if(!prof.admin)mergeDb().then(()=>{dirty=true;sync(true)})}
 async function doLogin(){q$("lErr").style.color="#dc2626";const er=q$("lErr"),u=q$("lUser").value.trim().toLowerCase(),pw=q$("lPass").value;
  if(Date.now()<aLock){er.textContent="Too many attempts. Please wait 30 seconds.";return}
  if(!u||!pw){er.textContent="Enter your user name and password.";return}
@@ -818,7 +819,7 @@ $("#lbBtn").onclick=()=>{tab="Leaderboard";draw()};$("#outBtn").onclick=startOut
 const ADMPROF={name:"Subbulakshmi T",email:"subbulakshmitce@gmail.com",admin:true};
 {let admS=false;try{admS=sessionStorage.getItem("pylab_adm")==="1"}catch(e){}if(admS){prof=Object.assign({},ADMPROF)}let last=null;try{last=sessionStorage.getItem("pylab_sess")}catch(e){}const d=last&&load(last);if(admS){upd()}else if(d){prof=d.prof;time=d.time||time;upd()}else{upd();showGate()}}
 /* ---------- Access control (verified Claude email) + analytics ---------- */
-const ADMIN="subbulakshmitce@gmail.com";let isAdm=false;
+const ADMIN="subbulakshmitce@gmail.com";let isAdm=false,dbErr="";
 const acl=()=>!!(prof&&prof.admin===true);
 function refreshAcl(){const ok=acl();$("#lbBtn").style.display=ok?"":"none";$("#admBtn").style.display=ok?"":"none";$("#myBtn").style.display=(prof&&!prof.admin)?"":"none";if(!ok&&(["Leaderboard","Admin","Mine","Contributors"].includes(tab))){tab="Functions";draw()}}
 async function checkAdmin(){isAdm=false;try{const u=await claude.use("user");if(u){const m=await u.me();const em=m&&m.email;isAdm=!!em&&em.toLowerCase()===ADMIN}}catch(e){}refreshAcl()}
@@ -844,7 +845,7 @@ function line(d){const W=320,H=150,m=Math.max(1,...d.map(x=>x.v)),px=i=>20+i*(W-
  return "<svg viewBox='0 0 "+W+" "+H+"' style='width:100%;height:auto'><polygon points='"+px(0)+","+(H-28)+" "+pts+" "+px(d.length-1)+","+(H-28)+"' style='fill:var(--ac);opacity:.15'/><polyline points='"+pts+"' fill='none' style='stroke:var(--ac)' stroke-width='2.5'/>"+d.map((x,i)=>"<circle cx='"+px(i)+"' cy='"+py(x.v)+"' r='3' style='fill:var(--ac)'/>"+(x.v?"<text x='"+px(i)+"' y='"+(py(x.v)-7)+"' text-anchor='middle' font-size='10' style='fill:var(--fg)'>"+x.v+"</text>":"")+(i%2===0?"<text x='"+px(i)+"' y='"+(H-10)+"' text-anchor='middle' font-size='9' style='fill:var(--mut)'>"+x.l+"</text>":"")).join("")+"</svg>"}
 async function renderAdmin(){$("#tabs").innerHTML="";const v=$("#view");document.querySelectorAll("#nav button").forEach(b=>b.classList.remove("on"));
  if(!acl()){v.innerHTML="<h2>Restricted</h2><p class='mut'>This page is available only to the course administrator.</p>";return}
- if(!db){v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>The shared database is not available in this view.</p>";return}
+ if(!db){v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>"+(typeof claude==="undefined"?"This copy of the app is running outside Claude (for example on Netlify), where the shared database does not exist, so analytics across all learners cannot be shown. A separate backend is needed for that.":"The shared database could not be reached"+(dbErr?" ("+esc(dbErr)+")":"")+". Open the app from its Claude link while signed in to Claude, then refresh the page.")+"</p>";return}
  v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>Loading…</p>";
  let rows=[];try{const s=await db.collection("board").orderBy("total","desc").limit(1000).get();rows=s.docs.map(d=>Object.assign({id:d.id},d.data()))}catch(e){v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>Could not load data ("+esc((e&&e.code)||"error")+").</p>";return}
  let fb=[];try{const fs=await db.collection("feedback").limit(500).get();fb=fs.docs.map(d=>d.data())}catch(e){}
@@ -896,8 +897,8 @@ function renderContrib(){$("#tabs").innerHTML="";document.querySelectorAll("#nav
  const c=(ic,role,who,sub,txt)=>"<div class='panel'><div style='font-size:28px'>"+ic+"</div><div class='kl' style='text-transform:uppercase;letter-spacing:.04em;margin-top:4px'>"+role+"</div><div style='font-size:18px;font-weight:700;margin:2px 0'>"+who+"</div>"+(sub?"<div class='mut' style='margin-bottom:8px'>"+sub+"</div>":"")+"<div>"+txt+"</div></div>";
  $("#view").innerHTML="<h2>🤝 Contributors</h2><p class='mut'>Python Lab is the result of teamwork. Our thanks to everyone who helped.</p><div class='cgrid'>"+
  c("📚","Functions","Suyash Srivastava","","Contributed the Python function reference that forms the <b>Functions</b> section: the categories, function descriptions and examples learners study first.")+
- c("🎓","Programs &amp; Debugging design","Dr. T. Subbulakshmi","Professor, SCOPE, VIT Chennai, Tamil Nadu, India","Designed the <b>Programs</b> and <b>Debugging</b> sections, including their structure, levels of difficulty and learning flow, so that learners move from understanding an algorithm to writing, running and fixing code.")+
- c("✨","Built with Claude","Claude (Anthropic)","AI assistant","Assisted with building the application: the interface and in-browser code runner; drafting and test-verifying the program, algorithm and debugging content to the specified design; extending the function entries; and the sign-up, practice tracking, leaderboard, analytics and feedback features. As an AI, Claude can make mistakes, so please check important details against the official Python documentation.")+"</div>"}
+ c("🎓","Programs, Debugging &amp; platform design","Dr. T. Subbulakshmi","Professor, SCOPE, VIT Chennai, Tamil Nadu, India","Designed the <b>Programs</b> and <b>Debugging</b> sections, including their structure, levels of difficulty and learning flow, so that learners move from understanding an algorithm to writing, running and fixing code. Also designed the platform features: <b>practice tracking</b>, <b>leaderboard</b>, <b>analytics</b> and <b>feedback</b>.")+
+ c("✨","Built with Claude","Claude (Anthropic)","AI assistant","Assisted with building the application: the interface and in-browser code runner; drafting and test-verifying the program, algorithm and debugging content to the specified design; extending the function entries; and implementing the sign-up, practice tracking, leaderboard, analytics and feedback features to Dr. Subbulakshmi's design.")+"</div><p class='mut' style='font-size:13px;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd)'>ℹ️ As an AI, Claude can make mistakes, so please check important details against the official Python documentation.</p>"}
 $("#cbBtn").onclick=()=>{tab="Contributors";draw()};
 $("#admBtn").onclick=()=>{tab="Admin";draw()};$("#myBtn").onclick=()=>{tab="Mine";draw()};checkAdmin();
 
