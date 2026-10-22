@@ -755,28 +755,19 @@ const fmt=s=>{s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60)
 function save(){if(!prof||prof.admin)return;try{localStorage.setItem(UK(prof.username),JSON.stringify({prof,time}))}catch(e){}}
 function load(email){try{const d=JSON.parse(localStorage.getItem(UK(email)));if(d&&d.prof)return d}catch(e){}return null}
 function upd(){setTimeout(()=>{if(typeof refreshAcl==="function")refreshAcl()});$("#me").textContent=prof?"👤 "+prof.name+(prof.admin?" (admin)":" · "+fmt(total())):"";$("#outBtn").style.display=prof?"":"none"}
-async function sync(force){if(!prof||prof.admin||!db||!uid||(!dirty&&!force))return;const tot=total(),secs=time.secs,runs=time.runs||0;
- try{await db.doc("board/"+uid).set({name:prof.name,country:prof.country,college:prof.college,total:tot,secs:secs,runs:runs,sections:Object.keys(secs).filter(k=>sumO(secs[k])>0),updated:Date.now()});
-  await db.doc("data/users/"+uid+"/profile").set({name:prof.name,email:prof.email,username:prof.username,country:prof.country,college:prof.college,joined:prof.joined,last:new Date().toISOString()});
-  dirty=false;syncErr=""}catch(e){syncErr=(e&&e.code)||"error"}}
-async function mergeDb(){if(!db||!uid)return;try{const s=await db.doc("board/"+uid).get();if(s.exists){const d=s.data();if(d&&d.total>total()){time.secs=d.secs||{};time.runs=Math.max(d.runs||0,time.runs||0);save();upd()}}}catch(e){}}
-async function initDb(){try{if(typeof claude==="undefined")return;const u=await claude.use("user");if(u)uid=await u.id();db=await claude.use("db");if(!db)uid=null;if(prof){await mergeDb();dirty=true;sync(true)}}catch(e){db=null;uid=null;dbErr=(e&&(e.code||e.message))||String(e)}}
+async function sync(force){if(!prof||prof.admin||!TOKEN||(!dirty&&!force))return;try{await api("progress",{secs:time.secs,runs:time.runs||0});dirty=false;syncErr=""}catch(e){syncErr=(e&&e.error)||"offline"}}
+async function mergeDb(){}
+async function initDb(){}
 function clearGate(){["lUser","lPass","sName","sEmail","sCountry","sCollege","sUser","sPass","sPass2"].forEach(i=>{const e=document.getElementById(i);if(e)e.value=""});["lErr","sErr"].forEach(i=>{const e=document.getElementById(i);if(e)e.textContent=""})}
 function showGate(){clearGate();if(typeof gateTab==="function")gateTab("l");$("#gate").style.display="block";setTimeout(clearGate,300)}
 const q$=id=>document.getElementById(id);let aFails=0,aLock=0;
 const getAcct=u=>{try{return JSON.parse(localStorage.getItem("pylab_acct_"+u))}catch(e){return null}};
 function gateTab(w){q$("fLogin").style.display=w==="l"?"block":"none";q$("fSign").style.display=w==="s"?"block":"none";q$("tbLogin").classList.toggle("on",w==="l");q$("tbSign").classList.toggle("on",w==="s")}
 function enterApp(){clearGate();q$("gate").style.display="none";upd();refreshAcl();if(!prof.admin)mergeDb().then(()=>{dirty=true;sync(true)})}
-async function doLogin(){q$("lErr").style.color="#dc2626";const er=q$("lErr"),u=q$("lUser").value.trim().toLowerCase(),pw=q$("lPass").value;
- if(Date.now()<aLock){er.textContent="Too many attempts. Please wait 30 seconds.";return}
+async function doLogin(){const er=q$("lErr");er.style.color="#dc2626";const u=q$("lUser").value.trim().toLowerCase(),pw=q$("lPass").value;
  if(!u||!pw){er.textContent="Enter your user name and password.";return}
- let ok=false,a=null;
- try{if(u==="admin"){ok=(await sha("pylab-v1|"+pw))===ADMH}else{a=getAcct(u);ok=!!a&&(await pbk(pw,a.salt))===a.hash}}catch(e){}
- if(!ok){aFails++;if(aFails>=5){aLock=Date.now()+30000;aFails=0}er.textContent="Incorrect user name or password. (Accounts are saved in the browser where you signed up.)";return}
- aFails=0;er.textContent="";q$("lPass").value="";
- if(u==="admin"){prof=Object.assign({},ADMPROF);try{sessionStorage.setItem("pylab_adm","1")}catch(e){}}
- else{const d=load(u);prof=Object.assign({},a.prof,{username:u});time=(d&&d.time)||{secs:{},runs:0};try{sessionStorage.setItem("pylab_sess",u)}catch(e){}save()}
- enterApp()}
+ er.style.color="";er.textContent="Signing in…";
+ try{const j=await api("login",{username:u,password:pw});applySession(j);enterApp()}catch(e){er.style.color="#dc2626";er.textContent=(e&&e.error)||"Could not reach the server."}}
 async function doSign(){const er=q$("sErr"),g=id=>q$(id).value.trim(),f={name:g("sName"),email:g("sEmail").toLowerCase(),country:g("sCountry"),college:g("sCollege")},u=g("sUser").toLowerCase(),pw=q$("sPass").value;
  if(!f.name||!f.email||!f.country||!f.college||!u||!pw){er.textContent="Please fill in every field.";return}
  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email)){er.textContent="Enter a valid email address.";return}
@@ -784,23 +775,17 @@ async function doSign(){const er=q$("sErr"),g=id=>q$(id).value.trim(),f={name:g(
  if(u==="admin"){er.textContent="That user name is reserved.";return}
  if(pw.length<6){er.textContent="Password must have at least 6 characters.";return}
  if(pw!==q$("sPass2").value){er.textContent="The passwords do not match.";return}
- if(getAcct(u)){er.textContent="That user name is already taken.";return}
- try{const salt=Array.from(crypto.getRandomValues(new Uint8Array(12))).map(x=>x.toString(16).padStart(2,"0")).join("");
-  const acct={salt:salt,hash:await pbk(pw,salt),prof:Object.assign({joined:new Date().toISOString()},f)};
-  localStorage.setItem("pylab_acct_"+u,JSON.stringify(acct));
-  prof=Object.assign({},acct.prof,{username:u});time={secs:{},runs:0};try{sessionStorage.setItem("pylab_sess",u)}catch(e){}save()}
- catch(e){er.textContent="Could not create the account in this browser.";return}
- er.textContent="";["sPass","sPass2"].forEach(i=>q$(i).value="");enterApp()}
+ er.textContent="Creating account…";
+ try{const j=await api("signup",Object.assign({username:u,password:pw},f));applySession(j);enterApp()}catch(e){er.textContent=(e&&e.error)||"Could not reach the server."}}
 function wireGate(){q$("tbLogin").onclick=()=>gateTab("l");q$("tbSign").onclick=()=>gateTab("s");q$("lGo").onclick=doLogin;q$("sGo").onclick=doSign;
  q$("gate").addEventListener("keydown",e=>{if(e.key==="Enter"){if(q$("fLogin").style.display!=="none")doLogin();else doSign()}})}
-async function doOut(){try{sessionStorage.removeItem("pylab_adm");sessionStorage.removeItem("pylab_sess")}catch(e){}save();await sync(true);prof=null;time={secs:{},runs:0};try{localStorage.removeItem(LK)}catch(e){}upd();showGate();if(["Leaderboard","Admin","Mine","Contributors"].includes(tab)){tab="Functions";draw()}}
+async function doOut(){save();await sync(true);try{await api("logout")}catch(e){}TOKEN="";try{sessionStorage.removeItem("pylab_tok");sessionStorage.removeItem("pylab_adm");sessionStorage.removeItem("pylab_sess")}catch(e){}prof=null;time={secs:{},runs:0};try{localStorage.removeItem(LK)}catch(e){}upd();showGate();if(["Leaderboard","Admin","Mine","Contributors"].includes(tab)){tab="Functions";draw()}}
 async function renderBoard(){$("#tabs").innerHTML="";const v=$("#view");v.innerHTML="<h2>🏆 Leaderboard</h2><p class='mut'>Loading…</p>";
  document.querySelectorAll("#nav button").forEach(b=>b.classList.remove("on"));
  let rows=[],note="";
- if(db){await sync(true);try{const s=await db.collection("board").orderBy("total","desc").limit(50).get();rows=s.docs.map(d=>Object.assign({id:d.id},d.data()))}catch(e){note="The shared leaderboard could not be loaded ("+((e&&e.code)||"error")+")."}}
- else note="The shared leaderboard is not available in this view, so only your own progress is shown.";
- if(syncErr)note+=" Your progress could not be shared ("+syncErr+"): it is saved on this device. Ask the page owner for Contributor access to appear on the shared board.";
- if(prof&&!rows.some(r=>r.id===uid))rows.push({id:uid||"me",name:prof.name,total:total()});
+ try{const j=await api("admin");rows=j.users.map(u=>({id:u.username,name:u.name,total:u.total}))}catch(e){note="The leaderboard could not be loaded ("+((e&&e.error)||"error")+")."}
+ 
+ if(prof&&!prof.admin&&!rows.some(r=>r.id===uid))rows.push({id:uid||"me",name:prof.name,total:total()});
  rows.forEach(r=>{if(prof&&r.id===(uid||"me"))r.total=Math.max(r.total||0,total())});
  rows.sort((a,b)=>(b.total||0)-(a.total||0));
  const me=r=>prof&&r.id===(uid||"me");
@@ -816,8 +801,12 @@ setInterval(()=>{if(!prof||prof.admin||document.hidden||Date.now()-lastAct>60000
  const o=time.secs[cat]=time.secs[cat]||{};o[tab]=(o[tab]||0)+1;dirty=true;tickN++;if(tickN%5===0){save();upd()}if(tickN%30===0)sync()},1000);
 document.addEventListener("visibilitychange",()=>{if(document.hidden){save();sync()}});
 $("#lbBtn").onclick=()=>{tab="Leaderboard";draw()};$("#outBtn").onclick=startOut;wireGate();
-const ADMPROF={name:"Subbulakshmi T",email:"subbulakshmitce@gmail.com",admin:true};
-{let admS=false;try{admS=sessionStorage.getItem("pylab_adm")==="1"}catch(e){}if(admS){prof=Object.assign({},ADMPROF)}let last=null;try{last=sessionStorage.getItem("pylab_sess")}catch(e){}const d=last&&load(last);if(admS){upd()}else if(d){prof=d.prof;time=d.time||time;upd()}else{upd();showGate()}}
+const ADMPROF={name:"Subbulakshmi T",email:"subbulakshmitce@gmail.com",username:"admin",admin:true};
+let TOKEN="";try{TOKEN=sessionStorage.getItem("pylab_tok")||""}catch(e){}
+async function api(action,data){const r=await fetch("/api",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({action:action,token:TOKEN},data||{}))});let j={};try{j=await r.json()}catch(e){j={error:"The server did not respond."}}if(!r.ok)throw j;return j}
+function applySession(j){TOKEN=j.token||TOKEN;try{sessionStorage.setItem("pylab_tok",TOKEN)}catch(e){}prof=j.admin?Object.assign({},ADMPROF):Object.assign({},j.prof);if(!j.admin)time={secs:j.secs||{},runs:j.runs||0}}
+db={};uid="srv";
+(async()=>{if(TOKEN){try{applySession(await api("me"));upd();refreshAcl();return}catch(e){TOKEN="";try{sessionStorage.removeItem("pylab_tok")}catch(x){}}}upd();showGate()})();
 /* ---------- Access control (verified Claude email) + analytics ---------- */
 const ADMIN="subbulakshmitce@gmail.com";let isAdm=false,dbErr="";
 const acl=()=>!!(prof&&prof.admin===true);
@@ -827,9 +816,10 @@ const qt=(a,p)=>{if(!a.length)return 0;const s=a.slice().sort((x,y)=>x-y),i=(s.l
 const pc=(a,b)=>b?(a/b*100).toFixed(1)+"%":"0.0%";
 const bar=p=>"<span style='display:inline-block;height:8px;border-radius:4px;background:var(--ac);width:"+Math.max(2,Math.min(120,Math.round(p*1.2)))+"px'></span>";
 const T=(h,b)=>"<div class='card' style='overflow-x:auto'><table style='width:100%;border-collapse:collapse'><tr style='text-align:left'>"+h.map(x=>"<th style='padding:3px 8px 3px 0'>"+x+"</th>").join("")+"</tr>"+b.map(r=>"<tr style='border-top:1px solid var(--bd)'>"+r.map(x=>"<td style='padding:3px 8px 3px 0'>"+x+"</td>").join("")+"</tr>").join("")+"</table></div>";
+function syncStatus(){if(syncErr)return "Your progress could not be saved to the server ("+syncErr+"). It is kept on this device and will be retried.";return "✓ Your progress is saved to the course server."}
 function renderMine(){$("#tabs").innerHTML="";document.querySelectorAll("#nav button").forEach(b=>b.classList.remove("on"));
  const ks=Object.keys(time.secs).filter(k=>sumO(time.secs[k])>0).sort((a,b)=>sumO(time.secs[b])-sumO(time.secs[a]));
- let h="<h2>📈 My progress</h2><div class='card'>Total practice time: <b>"+fmt(total())+"</b> · Programs executed: <b>"+(time.runs||0)+"</b> · Sections practised: <b>"+ks.length+"</b></div>";
+ let h="<h2>📈 My progress</h2><div class='card'>Total practice time: <b>"+fmt(total())+"</b> · Programs executed: <b>"+(time.runs||0)+"</b> · Sections practised: <b>"+ks.length+"</b></div><p class='mut'>"+syncStatus()+"</p>";
  h+=ks.length?T(["Section","Functions","Programs","Debugging","Total"],ks.map(k=>{const o=time.secs[k],t=pythonData.find(x=>x.id===k);return [esc(t?t.title:k),fmt(o.Functions||0),fmt(o.Programs||0),fmt(o.Debugging||0),fmt(sumO(o))]})):"<p class='mut'>No sections practised yet.</p>";
  $("#view").innerHTML=h}
 (function(){const st=document.createElement("style");st.textContent=`.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}.kpi{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;border-left:4px solid var(--ac)}.kl{font-size:12px;color:var(--mut)}.kv{font-size:24px;font-weight:700;line-height:1.2}.ks{font-size:12px;color:var(--mut)}.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px;margin:12px 0}.panel{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;min-width:0}.panel h3{margin:0 0 10px;font-size:15px}.hb{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}.hb .nm{width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb .tr{flex:1;background:var(--bd);border-radius:6px;height:12px;overflow:hidden}.hb .fl{height:12px;border-radius:6px;background:var(--ac)}.hb .vl{min-width:64px;text-align:right;color:var(--mut)}.lg{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;margin-top:6px}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}.ad th{font-size:12px;color:var(--mut);font-weight:600;padding:6px 10px 6px 0;text-align:left;white-space:nowrap}.ad td{padding:6px 10px 6px 0;border-top:1px solid var(--bd);font-size:13px}.adh{display:flex;gap:10px;align-items:center;flex-wrap:wrap}`;document.head.appendChild(st)})();
@@ -847,8 +837,7 @@ async function renderAdmin(){$("#tabs").innerHTML="";const v=$("#view");document
  if(!acl()){v.innerHTML="<h2>Restricted</h2><p class='mut'>This page is available only to the course administrator.</p>";return}
  if(!db){v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>"+(typeof claude==="undefined"?"The admin analytics are stored on Claude, not on this website. Use the button below to log in to Claude and open them.</p><p><a class='run' style='display:inline-block;text-decoration:none;padding:10px 18px;background:#7c3aed' href='https://claude.ai/artifact/3Zdesstn291BCukcuUp7YX' target='_blank' rel='noopener'>🔐 Log in to Claude &amp; open admin analytics</a></p><p class='mut' style='font-size:13px'>On the Claude page, log in again with the admin user name and password. Those analytics include only learners who use the Claude link, not learners who use this website.":"The shared database could not be reached"+(dbErr?" ("+esc(dbErr)+")":"")+". Open the app from its Claude link while signed in to Claude, then refresh the page.")+"</p>";return}
  v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>Loading…</p>";
- let rows=[];try{const s=await db.collection("board").orderBy("total","desc").limit(1000).get();rows=s.docs.map(d=>Object.assign({id:d.id},d.data()))}catch(e){v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>Could not load data ("+esc((e&&e.code)||"error")+").</p>";return}
- let fb=[];try{const fs=await db.collection("feedback").limit(500).get();fb=fs.docs.map(d=>d.data())}catch(e){}
+ let rows=[],fb=[];try{const j=await api("admin");rows=j.users.slice().sort((a,b)=>(b.total||0)-(a.total||0));fb=j.feedback||[]}catch(e){v.innerHTML="<h2>📊 Admin analytics</h2><p class='mut'>Could not load data ("+esc((e&&e.error)||"error")+").</p>";return}
  const n=rows.length,tt=rows.map(r=>r.total||0),sum=tt.reduce((a,b)=>a+b,0),mean=n?sum/n:0,sd=n?Math.sqrt(tt.reduce((a,b)=>a+(b-mean)*(b-mean),0)/n):0;
  const runs=rows.reduce((a,r)=>a+(r.runs||0),0),active=rows.filter(r=>(r.total||0)>=60).length,now=Date.now(),within=ms=>rows.filter(r=>r.updated&&now-r.updated<=ms).length;
  const nsec=r=>(r.sections||[]).length,avgSec=n?rows.reduce((a,r)=>a+nsec(r),0)/n:0,N=pythonData.length;
@@ -871,9 +860,9 @@ async function renderAdmin(){$("#tabs").innerHTML="";const v=$("#view");document
  h+="<div class='cgrid'>"+panel("Country statistics",AT(["Country","Learners","Share","Total time","Avg"],grp(ctry).slice(0,15).map(k=>[esc(k),ctry[k].u,pc(ctry[k].u,n),fmt(ctry[k].t),fmt(ctry[k].t/ctry[k].u)])))+panel("College / university statistics",AT(["College","Learners","Share","Total time","Avg"],grp(col).slice(0,15).map(k=>[esc(k),col[k].u,pc(col[k].u,n),fmt(col[k].t),fmt(col[k].t/col[k].u)])))+"</div>";
  h+="<div class='panel' style='margin:12px 0'><h3>All learners</h3><input id='admQ' placeholder='Filter by name, college or country…' style='width:100%;margin-bottom:8px'><div id='admT'></div></div>";
  h+=fbPanel(fb);v.innerHTML=h;$("#admR").onclick=renderAdmin;
- const draw2=q=>{const f=rows.filter(r=>(r.name+" "+r.college+" "+r.country).toLowerCase().includes(q));$("#admT").innerHTML=AT(["#","Name","College","Country","Time","Runs","Sections","Last active"],f.map((r,i)=>[i+1,esc(r.name||"-"),esc(r.college||"-"),esc(r.country||"-"),fmt(r.total||0),r.runs||0,nsec(r)+"/"+N,r.updated?new Date(r.updated).toLocaleString():"-"]))};draw2("");$("#admQ").oninput=e=>draw2(e.target.value.toLowerCase());
+ const draw2=q=>{const f=rows.filter(r=>[r.name,r.username,r.email,r.college,r.country].join(" ").toLowerCase().includes(q));$("#admT").innerHTML=AT(["#","Name","User name","Email","College","Country","Joined","Time","Runs","Sections","Last active"],f.map((r,i)=>[i+1,esc(r.name||"-"),esc(r.username||"-"),esc(r.email||"-"),esc(r.college||"-"),esc(r.country||"-"),r.joined?new Date(r.joined).toLocaleDateString():"-",fmt(r.total||0),r.runs||0,nsec(r)+"/"+N,r.updated?new Date(r.updated).toLocaleString():"-"]))};draw2("");$("#admQ").oninput=e=>draw2(e.target.value.toLowerCase());
  $("#admC").onclick=async()=>{const q=x=>'"'+String(x==null?"":x).replace(/"/g,'""')+'"';const sk=pythonData.map(t=>t.id);
-  const csv=[["Name","College","Country","Total seconds","Runs","Last active"].concat(sk.map(k=>k+" seconds"))].concat(rows.map(r=>[r.name,r.college,r.country,r.total||0,r.runs||0,r.updated?new Date(r.updated).toISOString():""].concat(sk.map(k=>sumO((r.secs||{})[k]))))).map(r=>r.map(q).join(",")).join("\n");
+  const csv=[["Name","User name","Email","College","Country","Joined","Total seconds","Runs","Last active"].concat(sk.map(k=>k+" seconds"))].concat(rows.map(r=>[r.name,r.username,r.email,r.college,r.country,r.joined||"",r.total||0,r.runs||0,r.updated?new Date(r.updated).toISOString():""].concat(sk.map(k=>sumO((r.secs||{})[k]))))).map(r=>r.map(q).join(",")).join("\n");
   try{if(typeof claude==="undefined"){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="python-lab-analytics.csv";a.click();$("#admM").textContent="Saved.";return}const d=await claude.use("downloads");if(!d){$("#admM").textContent="Downloads are not available here.";return}await d.save({filename:"python-lab-analytics.csv",data:csv});$("#admM").textContent="Saved."}catch(e){$("#admM").textContent="Download not completed ("+((e&&e.code)||"error")+")."}}}
 /* ---------- Sign-out feedback ---------- */
 let fbRating=0;
@@ -884,7 +873,7 @@ async function sendFb(){const c=q$("fbText").value.trim(),anon=q$("fbAnon").chec
  if(!fbRating&&!c){q$("fbErr").textContent="Please give a rating or a comment, or choose Skip.";return}
  const e={name:anon?"Anonymous":prof.name,rating:fbRating,comment:c.slice(0,1000),t:Date.now()};
  try{const k="pylab_fb_"+prof.username,l=JSON.parse(localStorage.getItem(k)||"[]");l.push(e);localStorage.setItem(k,JSON.stringify(l))}catch(x){}
- if(db&&uid){try{const ref=db.doc("feedback/"+uid),s=await ref.get(),old=s.exists?(s.data().entries||[]):[];await ref.set({entries:old.concat([e]).slice(-10),updated:Date.now()})}catch(x){}}
+ try{await api("feedback",{rating:fbRating,comment:c.slice(0,1000),anon:anon})}catch(x){}
  closeFb();await doOut();const m=q$("lErr");m.style.color="#16a34a";m.textContent="Thank you for your feedback!"}
 document.querySelectorAll("#fbStars button").forEach((b,i)=>{b.onclick=()=>{fbRating=i+1;paintStars()}});
 q$("fbSend").onclick=sendFb;q$("fbSkip").onclick=async()=>{closeFb();await doOut()};q$("fbBack").onclick=closeFb;
